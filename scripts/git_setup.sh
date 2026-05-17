@@ -6,7 +6,7 @@ SPAWN_DRY_RUN=${SPAWN_DRY_RUN:-false}
 SPAWN_WORKSPACE=${SPAWN_WORKSPACE:-"personal"}
 SPAWN_NAME=${SPAWN_NAME:-"Luke Brannagan"}
 SPAWN_PERSONAL_EMAIL=${SPAWN_PERSONAL_EMAIL:-"luke@personal.dev"}
-SPAWN_WORK_EMAIL=${SPAWN_WORK_EMAIL:-"luke.brannagan@some-cool-company.com"}
+SPAWN_WORK_EMAIL=${SPAWN_WORK_EMAIL:-""}
 
 PROJECTS_DIR="$HOME/Projects"
 GLOBAL_GITCONFIG="$HOME/.gitconfig"
@@ -90,23 +90,8 @@ EOF
     write_config_file "$GLOBAL_GITCONFIG" "$GLOBAL_CONFIG"
 fi
 
-GLOBAL_IGNORE=$(cat << EOF
-.DS_Store
-.idea/
-.vscode/
-node_modules/
-dist/
-*.log
-.env.local
-EOF
-)
-write_config_file "$HOME/.gitignore_global" "$GLOBAL_IGNORE"
-
 # --- Global Ignore Sync ---
-if [ "$SPAWN_DRY_RUN" = "true" ]; then
-    echo "🪵  [DRY-RUN] Would write universal rules to ~/.gitignore_global"
-else
-    cat << 'EOF' > "$HOME/.gitignore_global"
+GLOBAL_IGNORE=$(cat << EOF
 # macOS System Garbage
 .DS_Store
 .AppleDouble
@@ -116,20 +101,15 @@ else
 .idea/
 .vscode/
 *.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.swp
 
 # Logs and Runtime outputs
-████████████.log
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 EOF
+)
 
-    git config --global core.excludesfile "$HOME/.gitignore_global"
-    echo "✅ Universal global gitignore rule sets synced."
-fi
-
+write_config_file "$HOME/.gitignore_global" "$GLOBAL_IGNORE"
 echo "🎉 Git identity script tasks complete."

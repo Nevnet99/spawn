@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -15,6 +16,7 @@ type step int
 
 const (
 	selectScripts step = iota
+	gatherIdentity
 	reviewPlan
 	executingScripts
 	showLogs
@@ -33,7 +35,7 @@ const (
 	listFocus focusElement = iota
 	runButtonFocus
 	updateButtonFocus
-	pushButtonFocus // New focus target for pushing configs up
+	pushButtonFocus
 )
 
 type scriptItem struct {
@@ -50,27 +52,98 @@ type model struct {
 	cursor       int
 	dryRun       bool
 	isUpdateOnly bool
-	isPushOnly   bool // New flag to route the push script
+	isPushOnly   bool
 	err          error
-	done         bool
 	outputLog    string
 	termWidth    int
+
+	// Identity Form Variables
+	nameInput      textinput.Model
+	emailInput     textinput.Model
+	workEmailInput textinput.Model
+	inputFocus     int // 0 = Name, 1 = Email, 2 = Work Email
+	userName       string
+	userEmail      string
+	userWorkEmail  string
 }
 
 func initialModel(dryRun bool) model {
+	nameIn := textinput.New()
+	nameIn.Placeholder = "e.g. Luke Brannagan"
+	nameIn.Focus()
+	nameIn.CharLimit = 50
+
+	emailIn := textinput.New()
+	emailIn.Placeholder = "e.g. luke@personal.dev"
+	emailIn.CharLimit = 100
+
+	workEmailIn := textinput.New()
+	workEmailIn.Placeholder = "e.g. luke.brannagan@company.com (Leave blank for personal only)"
+	workEmailIn.CharLimit = 100
+
+	envName := os.Getenv("USER_FULL_NAME")
+	envEmail := os.Getenv("USER_GIT_EMAIL")
+	envWorkEmail := os.Getenv("USER_WORK_EMAIL")
+
 	return model{
-		activeStep:  selectScripts,
-		activeTab:   creationTab,
-		activeFocus: listFocus,
+		activeStep:     selectScripts,
+		activeTab:      creationTab,
+		activeFocus:    listFocus,
+		nameInput:      nameIn,
+		emailInput:     emailIn,
+		workEmailInput: workEmailIn,
+		userName:       envName,
+		userEmail:      envEmail,
+		userWorkEmail:  envWorkEmail,
+		inputFocus:     0,
 		scriptList: []scriptItem{
-			{name: "Git Environment Setup", description: "Configures workspace directories and profiles", selected: true},
-			{name: "App Payload Provisioning", description: "Installs desktop GUI applications (Chrome, Spotify, Ghostty, Obsidian, Recordly)", selected: true},
-			{name: "Terminal Utilities Setup", description: "Installs modern command line binary upgrades (eza, bat, zoxide, ripgrep, fzf, golang, nvm, starship)", selected: true},
-			{name: "Shell Profile Configuration", description: "Binds operational shorthand aliases and runtime environment hooks to your shell rc files", selected: true},
-			{name: "SSH Configuration Guard", description: "Generates secure Ed25519 identity keys and sets up automatic keychain routing", selected: true},
-			{name: "Ghostty Preferences Setup", description: "Configures terminal margins, font rendering dimensions, and window presentation styles", selected: true},
-			{name: "NvChad Configuration Link", description: "Deploys a blazing fast, hyper-optimized NvChad layout structure via user profile symlinks", selected: true},
-			{name: "macOS Core Velocity Tuning", description: "Overrides operating system delays to enable lightning-fast key repeat rates and directional scrolling adjustments", selected: true},
+			{
+				name:        "Git Environment Setup",
+				description: "Configures workspace directories and profiles",
+				selected:    true,
+			},
+			{
+				name: "App Payload Provisioning",
+				description: "Installs desktop GUI applications " +
+					"(Chrome, Spotify, Ghostty, Obsidian, Recordly)",
+				selected: true,
+			},
+			{
+				name: "Terminal Utilities Setup",
+				description: "Installs modern command line binary upgrades " +
+					"(eza, bat, zoxide, ripgrep, fzf, golang, nvm, starship)",
+				selected: true,
+			},
+			{
+				name: "Shell Profile Configuration",
+				description: "Binds operational shorthand aliases and runtime environment " +
+					"hooks to your shell rc files",
+				selected: true,
+			},
+			{
+				name: "SSH Configuration Guard",
+				description: "Generates secure Ed25519 identity keys and sets up " +
+					"automatic keychain routing",
+				selected: true,
+			},
+			{
+				name: "Ghostty Preferences Setup",
+				description: "Configures terminal margins, font rendering dimensions, " +
+					"and window presentation styles",
+				selected: true,
+			},
+			{
+				name: "NvChad Configuration Link",
+				description: "Deploys a blazing fast, hyper-optimized NvChad layout " +
+					"structure via user profile symlinks",
+				selected: true,
+			},
+			{
+				name: "macOS Core Velocity Tuning",
+				description: "Overrides operating system delays to enable lightning-fast " +
+					"key repeat rates and directional scrolling adjustments",
+				selected: true,
+			},
 		},
 		cursor:    0,
 		dryRun:    dryRun,
@@ -79,14 +152,13 @@ func initialModel(dryRun bool) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func runSelectedScriptsCmd(m model) tea.Cmd {
 	return func() tea.Msg {
 		var output strings.Builder
 
-		// Route path 1: Critical Security Purge
 		if m.activeTab == destructionTab {
 			output.WriteString("▶️ Executing: Scorched Earth Protocol...\n")
 			cmd := exec.Command("/bin/bash", "./scripts/scorched_earth.sh")
@@ -99,7 +171,6 @@ func runSelectedScriptsCmd(m model) tea.Cmd {
 			return successMsg{log: output.String()}
 		}
 
-		// Route path 2: Pull Updates Down
 		if m.isUpdateOnly {
 			output.WriteString("▶️ Executing: Cloud Configuration Sync (Pull)...\n")
 			cmd := exec.Command("/bin/bash", "./scripts/update_workspace.sh")
@@ -112,7 +183,6 @@ func runSelectedScriptsCmd(m model) tea.Cmd {
 			return successMsg{log: output.String()}
 		}
 
-		// Route path 3: Push Updates Up
 		if m.isPushOnly {
 			output.WriteString("▶️ Executing: Cloud Configuration Backup (Push)...\n")
 			cmd := exec.Command("/bin/bash", "./scripts/push_configs.sh")
@@ -125,7 +195,6 @@ func runSelectedScriptsCmd(m model) tea.Cmd {
 			return successMsg{log: output.String()}
 		}
 
-		// Route path 4: Full Workspace Deployment Checklist Sequence
 		for _, script := range m.scriptList {
 			if !script.selected {
 				continue
@@ -154,11 +223,18 @@ func runSelectedScriptsCmd(m model) tea.Cmd {
 			output.WriteString(fmt.Sprintf("▶️ Executing: %s...\n", script.name))
 
 			cmd := exec.Command("/bin/bash", scriptPath)
+
+			workspaceMode := "personal"
+			if m.userWorkEmail != "" {
+				workspaceMode = "work"
+			}
+
 			cmd.Env = append(os.Environ(),
 				fmt.Sprintf("SPAWN_DRY_RUN=%t", m.dryRun),
-				"SPAWN_WORKSPACE=personal",
-				"SPAWN_NAME=Luke Brannagan",
-				"SPAWN_PERSONAL_EMAIL=luke@personal.dev",
+				fmt.Sprintf("SPAWN_WORKSPACE=%s", workspaceMode),
+				fmt.Sprintf("SPAWN_NAME=%s", m.userName),
+				fmt.Sprintf("SPAWN_PERSONAL_EMAIL=%s", m.userEmail),
+				fmt.Sprintf("SPAWN_WORK_EMAIL=%s", m.userWorkEmail),
 			)
 
 			out, err := cmd.CombinedOutput()
@@ -184,8 +260,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		if msg.String() == "q" && m.activeStep != gatherIdentity {
 			return m, tea.Quit
 		}
 	case successMsg:
@@ -199,6 +277,82 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.activeStep {
+	case gatherIdentity:
+		var cmd tea.Cmd
+		var cmds []tea.Cmd
+
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "esc":
+				m.activeStep = selectScripts
+				return m, nil
+			case "tab", "down":
+				m.inputFocus = (m.inputFocus + 1) % 3
+
+				m.nameInput.Blur()
+				m.emailInput.Blur()
+				m.workEmailInput.Blur()
+
+				if m.inputFocus == 0 {
+					cmd = m.nameInput.Focus()
+				} else if m.inputFocus == 1 {
+					cmd = m.emailInput.Focus()
+				} else {
+					cmd = m.workEmailInput.Focus()
+				}
+				cmds = append(cmds, cmd)
+			case "shift+tab", "up":
+				m.inputFocus--
+				if m.inputFocus < 0 {
+					m.inputFocus = 2
+				}
+
+				m.nameInput.Blur()
+				m.emailInput.Blur()
+				m.workEmailInput.Blur()
+
+				if m.inputFocus == 0 {
+					cmd = m.nameInput.Focus()
+				} else if m.inputFocus == 1 {
+					cmd = m.emailInput.Focus()
+				} else {
+					cmd = m.workEmailInput.Focus()
+				}
+				cmds = append(cmds, cmd)
+			case "enter":
+				// If not on the last field, drop down a line
+				if m.inputFocus < 2 {
+					m.inputFocus++
+					m.nameInput.Blur()
+					m.emailInput.Blur()
+					if m.inputFocus == 1 {
+						cmd = m.emailInput.Focus()
+					} else {
+						cmd = m.workEmailInput.Focus()
+					}
+					cmds = append(cmds, cmd)
+				} else {
+					// Require Name and Personal Email. Work email can remain blank.
+					if m.nameInput.Value() != "" && m.emailInput.Value() != "" {
+						m.userName = m.nameInput.Value()
+						m.userEmail = m.emailInput.Value()
+						m.userWorkEmail = m.workEmailInput.Value()
+						m.activeStep = reviewPlan
+						return m, nil
+					}
+				}
+			}
+		}
+
+		m.nameInput, cmd = m.nameInput.Update(msg)
+		cmds = append(cmds, cmd)
+		m.emailInput, cmd = m.emailInput.Update(msg)
+		cmds = append(cmds, cmd)
+		m.workEmailInput, cmd = m.workEmailInput.Update(msg)
+		cmds = append(cmds, cmd)
+
+		return m, tea.Batch(cmds...)
+
 	case selectScripts:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			switch keyMsg.String() {
@@ -271,7 +425,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if m.activeFocus == runButtonFocus {
 					m.isUpdateOnly = false
 					m.isPushOnly = false
-					m.activeStep = reviewPlan
+
+					// Smart Trigger: Only ask for identity if Git or SSH setup is actively checked
+					needsIdentity := false
+					for _, item := range m.scriptList {
+						if item.selected && (item.name == "Git Environment Setup" || item.name == "SSH Configuration Guard") {
+							needsIdentity = true
+							break
+						}
+					}
+
+					if needsIdentity && (m.userName == "" || m.userEmail == "") {
+						m.activeStep = gatherIdentity
+					} else {
+						m.activeStep = reviewPlan
+					}
 				} else if m.activeFocus == updateButtonFocus {
 					m.isUpdateOnly = true
 					m.isPushOnly = false
@@ -290,7 +458,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "y", "enter":
 				m.activeStep = executingScripts
 				return m, runSelectedScriptsCmd(m)
-			case "n":
+			case "n", "esc":
 				m.activeStep = selectScripts
 			}
 		}
@@ -324,34 +492,44 @@ func (m model) View() string {
 	appBorderColor := lipgloss.Color("#2B2B2B")
 
 	if m.err != nil {
-		errorBoxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(dangerRed).Padding(1, 2).Width(innerContentWidth - 2)
+		errorBoxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(dangerRed).Padding(1, 2).Width(innerContentWidth - 2)
 		var errS string
-		errS += lipgloss.NewStyle().Foreground(dangerRed).Bold(true).Render("❌ SEQUENCE EXECUTION FAILURE") + "\n\n"
+		errS += lipgloss.NewStyle().Foreground(dangerRed).Bold(true).
+			Render("❌ SEQUENCE EXECUTION FAILURE") + "\n\n"
 		errS += fmt.Sprintf("%v\n\n", m.err)
-		errS += lipgloss.NewStyle().Foreground(dimGrey).Render("Review the output log history context above:") + "\n"
+		errS += lipgloss.NewStyle().Foreground(dimGrey).
+			Render("Review the output log history context above:") + "\n"
 		errS += fmt.Sprintf("%s\n\n", m.outputLog)
-		errS += lipgloss.NewStyle().Foreground(dimGrey).Render("Press 'q' or 'ctrl+c' to close.")
+		errS += lipgloss.NewStyle().Foreground(dimGrey).
+			Render("Press 'q' or 'ctrl+c' to close.")
 
 		var finalView strings.Builder
 		finalView.WriteString(renderHeader() + "\n")
-		appWrapperWindowStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(appBorderColor).Padding(1, 2).Width(outerChromeWidth)
+		appWrapperWindowStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(appBorderColor).Padding(1, 2).Width(outerChromeWidth)
 		finalView.WriteString(appWrapperWindowStyle.Render(errorBoxStyle.Render(errS)) + "\n")
 		return finalView.String()
 	}
 
 	if m.activeStep == showLogs {
-		logsBoxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(mintGreen).Padding(1, 2).Width(innerContentWidth - 2)
+		logsBoxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(mintGreen).Padding(1, 2).Width(innerContentWidth - 2)
 		var logsS string
-		logsS += lipgloss.NewStyle().Foreground(mintGreen).Bold(true).Render("📋 SEQUENCE LOG EXECUTION OUTPUT HISTORY") + "\n"
+		logsS += lipgloss.NewStyle().Foreground(mintGreen).Bold(true).
+			Render("📋 SEQUENCE LOG EXECUTION OUTPUT HISTORY") + "\n"
 
-		dividerLine := lipgloss.NewStyle().Foreground(lipgloss.Color("#3C3C3C")).Render(strings.Repeat("─", innerContentWidth-4))
+		dividerLine := lipgloss.NewStyle().Foreground(lipgloss.Color("#3C3C3C")).
+			Render(strings.Repeat("─", innerContentWidth-4))
 		logsS += dividerLine + "\n"
 		logsS += m.outputLog + "\n"
-		logsS += lipgloss.NewStyle().Foreground(dimGrey).Render("Press 'q' or 'ctrl+c' to close this log shell and exit spawn.")
+		logsS += lipgloss.NewStyle().Foreground(dimGrey).
+			Render("Press 'q' or 'ctrl+c' to close this log shell and exit spawn.")
 
 		var finalView strings.Builder
 		finalView.WriteString(renderHeader() + "\n")
-		appWrapperWindowStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(appBorderColor).Padding(1, 2).Width(outerChromeWidth)
+		appWrapperWindowStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(appBorderColor).Padding(1, 2).Width(outerChromeWidth)
 		finalView.WriteString(appWrapperWindowStyle.Render(logsBoxStyle.Render(logsS)) + "\n")
 		return finalView.String()
 	}
@@ -377,10 +555,34 @@ func (m model) View() string {
 	}
 
 	switch m.activeStep {
+	case gatherIdentity:
+		boxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(mintGreen).Padding(1, 2).Width(innerContentWidth - 2)
+		var form string
+		form += lipgloss.NewStyle().Foreground(mintGreen).Bold(true).
+			Render("👤 SECURE IDENTITY CONFIGURATION") + "\n"
+		form += lipgloss.NewStyle().Foreground(dimGrey).
+			Render("Spawn requires your identity to provision Git and SSH keys natively.") + "\n\n"
+
+		form += lipgloss.NewStyle().Bold(true).Render("Full Name:") + "\n"
+		form += m.nameInput.View() + "\n\n"
+
+		form += lipgloss.NewStyle().Bold(true).Render("Personal Email:") + "\n"
+		form += m.emailInput.View() + "\n\n"
+
+		form += lipgloss.NewStyle().Bold(true).Render("Work Email (Optional):") + "\n"
+		form += m.workEmailInput.View() + "\n\n"
+
+		form += lipgloss.NewStyle().Foreground(darkMuted).
+			Render("(Tab/Arrows to navigate, Enter to submit, Esc to go back)")
+		bodyContent += boxStyle.Render(form)
+
 	case selectScripts:
 		var tabs []string
-		activeTabStyle := lipgloss.NewStyle().Background(steelBlue).Foreground(lipgloss.Color("#000000")).Bold(true).Padding(0, 2)
-		inactiveTabStyle := lipgloss.NewStyle().Background(darkMuted).Foreground(dimGrey).Padding(0, 2)
+		activeTabStyle := lipgloss.NewStyle().Background(steelBlue).
+			Foreground(lipgloss.Color("#000000")).Bold(true).Padding(0, 2)
+		inactiveTabStyle := lipgloss.NewStyle().Background(darkMuted).
+			Foreground(dimGrey).Padding(0, 2)
 
 		if m.activeTab == creationTab {
 			tabs = append(tabs, activeTabStyle.Render("🛠  CREATION"))
@@ -391,7 +593,8 @@ func (m model) View() string {
 		}
 		bodyContent += lipgloss.JoinHorizontal(lipgloss.Top, tabs...) + "\n\n"
 
-		panelStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(appBorderColor).Padding(1, 2).Width(innerContentWidth - 2)
+		panelStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(appBorderColor).Padding(1, 2).Width(innerContentWidth - 2)
 		var panelContent strings.Builder
 
 		if m.activeTab == creationTab {
@@ -409,17 +612,23 @@ func (m model) View() string {
 
 				var lineTitle string
 				if isCursor {
-					lineTitle = fmt.Sprintf("%s %s %s", pointer, activeStyle.Render(checkbox), activeStyle.Render(item.name))
+					lineTitle = fmt.Sprintf("%s %s %s", pointer,
+						activeStyle.Render(checkbox),
+						activeStyle.Render(item.name))
 				} else if item.selected {
-					lineTitle = fmt.Sprintf("%s %s %s", pointer, activeStyle.Render(checkbox), lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCCCC")).Render(item.name))
+					lineTitle = fmt.Sprintf("%s %s %s", pointer,
+						activeStyle.Render(checkbox),
+						lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCCCC")).Render(item.name))
 				} else {
-					lineTitle = fmt.Sprintf("%s %s %s", pointer, inactiveStyle.Render(checkbox), inactiveStyle.Render(item.name))
+					lineTitle = fmt.Sprintf("%s %s %s", pointer,
+						inactiveStyle.Render(checkbox),
+						inactiveStyle.Render(item.name))
 				}
-				panelContent.WriteString(lineTitle + "\n" + fmt.Sprintf("   %s\n", descStyle.Render(item.description)))
+				panelContent.WriteString(lineTitle + "\n" +
+					fmt.Sprintf("   %s\n", descStyle.Render(item.description)))
 			}
 			panelContent.WriteString("\n")
 
-			// Dynamic Three-Button Layout Rendering
 			runBtnStyle := lipgloss.NewStyle().Padding(0, 2).Bold(true)
 			updateBtnStyle := lipgloss.NewStyle().Padding(0, 2).Bold(true)
 			pushBtnStyle := lipgloss.NewStyle().Padding(0, 2).Bold(true)
@@ -462,8 +671,13 @@ func (m model) View() string {
 				uPointer, updateBtnStyle.Render("🔄 PULL UPDATES"),
 				pPointer, pushBtnStyle.Render("📤 PUSH CONFIGS")))
 
-			bodyContent += panelStyle.BorderForeground(steelBlue).Render(strings.TrimSuffix(panelContent.String(), "\n")) + "\n\n"
-			bodyContent += lipgloss.NewStyle().Foreground(dimGrey).Render("(Arrows/hjkl to navigate layout cells, Space to toggle checks, Tab to switch paths, Enter to execute)")
+			bodyContent += panelStyle.BorderForeground(steelBlue).
+				Render(strings.TrimSuffix(panelContent.String(), "\n")) + "\n\n"
+
+			navHint := "(Arrows/hjkl to navigate layout cells, Space to toggle checks, " +
+				"Tab to switch paths, Enter to execute)"
+			bodyContent += lipgloss.NewStyle().Foreground(dimGrey).Render(navHint)
+
 		} else {
 			destructBtnStyle := lipgloss.NewStyle().Padding(0, 3).Bold(true)
 			if m.activeFocus == runButtonFocus {
@@ -472,26 +686,35 @@ func (m model) View() string {
 				destructBtnStyle = destructBtnStyle.Background(darkMuted).Foreground(dangerRed)
 			}
 
-			warningText := lipgloss.NewStyle().Foreground(dangerRed).Bold(true).Render("⚠️  CRITICAL WARNING") + "\n" +
-				lipgloss.NewStyle().Foreground(dimGrey).Render("Executing this procedure runs a full clear-slate reset on your configuration data roots.") + "\n\n"
+			warningTitle := lipgloss.NewStyle().Foreground(dangerRed).Bold(true).Render("⚠️  CRITICAL WARNING")
+			warningDesc := lipgloss.NewStyle().Foreground(dimGrey).
+				Render("Executing this procedure runs a full clear-slate reset on your configuration data roots.")
 
-			panelContent.WriteString(warningText)
+			panelContent.WriteString(warningTitle + "\n" + warningDesc + "\n\n")
 			panelContent.WriteString(fmt.Sprintf("👉 %s\n", destructBtnStyle.Render("💥 TRIGGER SCORCHED EARTH")))
 
-			bodyContent += panelStyle.BorderForeground(dangerRed).Render(strings.TrimSuffix(panelContent.String(), "\n")) + "\n\n"
-			bodyContent += lipgloss.NewStyle().Foreground(dimGrey).Render("(Tab to switch back to creation workspace, Enter to confirm button action)")
+			bodyContent += panelStyle.BorderForeground(dangerRed).
+				Render(strings.TrimSuffix(panelContent.String(), "\n")) + "\n\n"
+
+			navHint := "(Tab to switch back to creation workspace, Enter to confirm button action)"
+			bodyContent += lipgloss.NewStyle().Foreground(dimGrey).Render(navHint)
 		}
 
 	case reviewPlan:
-		boxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(mintGreen).Padding(1, 2).Width(innerContentWidth - 2).MarginBottom(1)
-		planText := lipgloss.NewStyle().Foreground(mintGreen).Bold(true).Render("📋 Scheduled Pipeline Actions") + "\n\n"
+		boxStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+			BorderForeground(mintGreen).Padding(1, 2).Width(innerContentWidth - 2).MarginBottom(1)
+		planText := lipgloss.NewStyle().Foreground(mintGreen).Bold(true).
+			Render("📋 Scheduled Pipeline Actions") + "\n\n"
 
 		if m.activeTab == destructionTab {
-			planText += fmt.Sprintf(" 💥 %s\n", lipgloss.NewStyle().Foreground(dangerRed).Bold(true).Render("Scorched Earth Protocol (Full-Purge Slate Cleanup)"))
+			planText += fmt.Sprintf(" 💥 %s\n", lipgloss.NewStyle().Foreground(dangerRed).Bold(true).
+				Render("Scorched Earth Protocol (Full-Purge Slate Cleanup)"))
 		} else if m.isUpdateOnly {
-			planText += fmt.Sprintf(" 🔄 %s\n", lipgloss.NewStyle().Foreground(steelBlue).Bold(true).Render("Non-Destructive Configuration Sync (Pull changes from cloud)"))
+			planText += fmt.Sprintf(" 🔄 %s\n", lipgloss.NewStyle().Foreground(steelBlue).Bold(true).
+				Render("Non-Destructive Configuration Sync (Pull changes from cloud)"))
 		} else if m.isPushOnly {
-			planText += fmt.Sprintf(" 📤 %s\n", lipgloss.NewStyle().Foreground(accentOrange).Bold(true).Render("Cloud Configuration Backup (Commit and push local changes)"))
+			planText += fmt.Sprintf(" 📤 %s\n", lipgloss.NewStyle().Foreground(accentOrange).Bold(true).
+				Render("Cloud Configuration Backup (Commit and push local changes)"))
 		} else {
 			hasSelection := false
 			for _, item := range m.scriptList {
@@ -506,9 +729,9 @@ func (m model) View() string {
 		}
 
 		bodyContent += boxStyle.Render(planText) + "\n"
-		prompt := "👉 Execute pipeline? (y/n): "
+		prompt := "👉 Execute pipeline? (y/n/esc): "
 		if m.dryRun {
-			prompt = "👉 Evaluate simulated execution pipeline printouts? (y/n): "
+			prompt = "👉 Evaluate simulated execution pipeline printouts? (y/n/esc): "
 		}
 		bodyContent += lipgloss.NewStyle().Bold(true).Render(prompt)
 
@@ -516,7 +739,8 @@ func (m model) View() string {
 		bodyContent += "⚙️  Executing scheduled architecture scripts... Please wait.\n"
 	}
 
-	appWrapperWindowStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(appBorderColor).Padding(1, 2).Width(outerChromeWidth)
+	appWrapperWindowStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
+		BorderForeground(appBorderColor).Padding(1, 2).Width(outerChromeWidth)
 
 	var finalView strings.Builder
 	finalView.WriteString(renderHeader() + "\n")
