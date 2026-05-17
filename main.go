@@ -156,50 +156,20 @@ func (m model) Init() tea.Cmd {
 }
 
 func runSelectedScriptsCmd(m model) tea.Cmd {
-	return func() tea.Msg {
-		var output strings.Builder
+	var bashCommand string
 
-		if m.activeTab == destructionTab {
-			output.WriteString("▶️ Executing: Scorched Earth Protocol...\n")
-			cmd := exec.Command("/bin/bash", "./scripts/scorched_earth.sh")
-			cmd.Env = append(os.Environ(), fmt.Sprintf("SPAWN_DRY_RUN=%t", m.dryRun))
-			out, err := cmd.CombinedOutput()
-			output.Write(out)
-			if err != nil {
-				return errMsg{err: fmt.Errorf("Scorched Earth failed: %w", err)}
-			}
-			return successMsg{log: output.String()}
-		}
-
-		if m.isUpdateOnly {
-			output.WriteString("▶️ Executing: Cloud Configuration Sync (Pull)...\n")
-			cmd := exec.Command("/bin/bash", "./scripts/update_workspace.sh")
-			cmd.Env = append(os.Environ(), fmt.Sprintf("SPAWN_DRY_RUN=%t", m.dryRun))
-			out, err := cmd.CombinedOutput()
-			output.Write(out)
-			if err != nil {
-				return successMsg{log: output.String()}
-			}
-			return successMsg{log: output.String()}
-		}
-
-		if m.isPushOnly {
-			output.WriteString("▶️ Executing: Cloud Configuration Backup (Push)...\n")
-			cmd := exec.Command("/bin/bash", "./scripts/push_configs.sh")
-			cmd.Env = append(os.Environ(), fmt.Sprintf("SPAWN_DRY_RUN=%t", m.dryRun))
-			out, err := cmd.CombinedOutput()
-			output.Write(out)
-			if err != nil {
-				return successMsg{log: output.String()}
-			}
-			return successMsg{log: output.String()}
-		}
-
+	if m.activeTab == destructionTab {
+		bashCommand = "/bin/bash ./scripts/scorched_earth.sh"
+	} else if m.isUpdateOnly {
+		bashCommand = "/bin/bash ./scripts/update_workspace.sh"
+	} else if m.isPushOnly {
+		bashCommand = "/bin/bash ./scripts/push_configs.sh"
+	} else {
+		var cmds []string
 		for _, script := range m.scriptList {
 			if !script.selected {
 				continue
 			}
-
 			var scriptPath string
 			switch script.name {
 			case "Git Environment Setup":
@@ -220,34 +190,42 @@ func runSelectedScriptsCmd(m model) tea.Cmd {
 				scriptPath = "./scripts/macos_defaults.sh"
 			}
 
-			output.WriteString(fmt.Sprintf("▶️ Executing: %s...\n", script.name))
-
-			cmd := exec.Command("/bin/bash", scriptPath)
-
-			workspaceMode := "personal"
-			if m.userWorkEmail != "" {
-				workspaceMode = "work"
-			}
-
-			cmd.Env = append(os.Environ(),
-				fmt.Sprintf("SPAWN_DRY_RUN=%t", m.dryRun),
-				fmt.Sprintf("SPAWN_WORKSPACE=%s", workspaceMode),
-				fmt.Sprintf("SPAWN_NAME=%s", m.userName),
-				fmt.Sprintf("SPAWN_PERSONAL_EMAIL=%s", m.userEmail),
-				fmt.Sprintf("SPAWN_WORK_EMAIL=%s", m.userWorkEmail),
-			)
-
-			out, err := cmd.CombinedOutput()
-			output.Write(out)
-			output.WriteString("\n")
-
-			if err != nil {
-				return successMsg{log: output.String()}
-			}
+			// Add an echo so you can see which script is starting in the terminal output
+			cmds = append(cmds, fmt.Sprintf("echo '\n▶️ Executing: %s...'", script.name))
+			cmds = append(cmds, fmt.Sprintf("/bin/bash %s", scriptPath))
 		}
-
-		return successMsg{log: output.String()}
+		if len(cmds) == 0 {
+			return func() tea.Msg { return successMsg{log: "No scripts selected."} }
+		}
+		// String the scripts together so they run in exact sequence natively
+		bashCommand = strings.Join(cmds, " && ")
 	}
+
+	c := exec.Command("/bin/bash", "-c", bashCommand)
+
+	workspaceMode := "personal"
+	if m.userWorkEmail != "" {
+		workspaceMode = "work"
+	}
+
+	c.Env = append(os.Environ(),
+		fmt.Sprintf("SPAWN_DRY_RUN=%t", m.dryRun),
+		fmt.Sprintf("SPAWN_WORKSPACE=%s", workspaceMode),
+		fmt.Sprintf("SPAWN_NAME=%s", m.userName),
+		fmt.Sprintf("SPAWN_PERSONAL_EMAIL=%s", m.userEmail),
+		fmt.Sprintf("SPAWN_WORK_EMAIL=%s", m.userWorkEmail),
+		"HOMEBREW_NO_AUTO_UPDATE=1",
+		"HOMEBREW_NO_INSTALL_CLEANUP=1",
+		"NONINTERACTIVE=1",
+	)
+
+	// tea.ExecProcess pauses the UI, streams the command natively, and resumes the UI on finish
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		if err != nil {
+			return errMsg{err: fmt.Errorf("Pipeline execution failed. Scroll up to see the exact bash error.\n\n%w", err)}
+		}
+		return successMsg{log: "✅ Pipeline completed successfully!\n\nAll real-time execution logs were printed directly to your terminal. Scroll up to review them."}
+	})
 }
 
 type errMsg struct{ err error }

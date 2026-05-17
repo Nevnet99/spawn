@@ -23,23 +23,28 @@ if ! command -v brew &> /dev/null; then
     fi
 fi
 
-# Deploy Cask Apps cleanly
+# Deploy Cask Apps cleanly (with --force to overwrite existing apps)
 for cask in "${CASKS[@]}"; do
     if [ "$SPAWN_DRY_RUN" = "true" ]; then
-        echo "🪵  [DRY-RUN] brew install --cask $cask"
+        echo "🪵  [DRY-RUN] brew install --cask --force $cask"
     else
         echo "⏳ Deploying Cask app: $cask..."
-        brew install --cask "$cask"
+        brew install --cask --force "$cask"
     fi
 done
 
-# Deploy Recordly via Standalone Formula
-RECORDLY_FORMULA_URL="https://raw.githubusercontent.com/webadderallorg/Recordly/main/recordly.rb"
 if [ "$SPAWN_DRY_RUN" = "true" ]; then
-    echo "🪵  [DRY-RUN] brew install --cask $RECORDLY_FORMULA_URL"
+    echo "🪵  [DRY-RUN] brew tap webadderallorg/recordly && brew install --cask recordly"
 else
-    echo "⏳ Deploying Recordly from remote formula source..."
-    brew install --cask "$RECORDLY_FORMULA_URL"
+    echo "⏳ Deploying Recordly from custom tap..."
+    
+    # 1. Tap the custom repository so Homebrew trusts it
+    brew tap webadderallorg/recordly https://github.com/webadderallorg/Recordly.git || true
+    
+    # 2. Install the cask by name, not URL
+    brew install --cask --force recordly || true
+    
+    echo "✅ Recordly deployment handled."
 fi
 
 # Handle Default Browser configuration
