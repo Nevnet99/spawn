@@ -1,0 +1,15 @@
+# --- Font and Interface Rendering ---
+font-family = "Monaspace Xenon Var"
+font-size = 13
+font-thicken = true
+theme = dark-background
+
+# --- Window Layout Layouts ---
+window-padding-x = 12
+window-padding-y = 12
+window-decorations = true
+macos-titlebar-style = hidden
+
+# --- Terminal Capabilities ---
+clipboard-read = allow
+clipboard-write = allow

@@ -1,0 +1,8 @@
+# Go binary executable
+spawn
+
+# macOS junk files
+.DS_Store
+
+# Neovim swap files
+*.swp
