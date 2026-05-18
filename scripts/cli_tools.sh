@@ -15,6 +15,11 @@ FORMULAS=(
     "gh"
     "golang"
     "starship"
+    "neovim"
+    "zsh-autosuggestions"
+    "zsh-syntax-highlighting"
+    "zsh-you-should-use"
+    "fzf-tab"
 )
 
 echo "💻 Deploying core terminal utility binaries and runtime languages..."

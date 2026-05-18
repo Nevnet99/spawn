@@ -59,4 +59,22 @@ else
     echo "✅ Google Chrome configured as primary browser."
 fi
 
+# Deploy Monaspace Superfamily via Core Homebrew Cask
+if [ "$SPAWN_DRY_RUN" = "true" ]; then
+    echo "🪵  [DRY-RUN] Would install font-monaspace core cask"
+else
+    echo "⏳ Purging old manual font files..."
+    FONT_TARGET="$HOME/Library/Fonts"
+    rm -f "$FONT_TARGET"/*Monaspace* 2>/dev/null || true
+
+    echo "⏳ Checking official Monaspace Font registration..."
+    if brew list --cask font-monaspace &>/dev/null; then
+        echo "✅ Monaspace Font is managed cleanly by Homebrew. Skipping."
+    else
+        echo "⏳ Provisioning official font-monaspace cask via Homebrew..."
+        brew install --cask font-monaspace
+        echo "✅ Monaspace Font successfully registered by Homebrew engine."
+    fi
+fi
+
 echo "🎉 Desktop app provisioning complete."
