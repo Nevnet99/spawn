@@ -16,6 +16,7 @@ alias gp='git push'
 alias ggp='git push origin "$(git branch --show-current)"'
 alias ggpull='git pull origin "$(git branch --show-current)"'
 alias glog='git log --oneline --decorate --graph'
+alias glg='git log --graph --abbrev-commit --decorate --format=format:"%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)"'
 
 # --- High-Velocity Autocompletion Engine ---
 # Initialize the native Zsh completion system (compsys) with speed caching
